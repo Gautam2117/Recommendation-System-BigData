@@ -1,30 +1,78 @@
-## Designing a Scalable Movie Recommender System with Apache Spark and Google Colab
+# Collaborative Filtering Recommender System (MovieLens 27M) - Spark ALS
 
-### Summary
+A scalable movie recommender built on **Apache Spark MLlib** using **collaborative filtering (ALS)**.  
+This project covers **data preprocessing**, **EDA (Koalas / Pandas-like on Spark)**, **model training**, and **recommendation quality evaluation** on the **MovieLens 27M** ratings dataset.
 
-The goal of this project is to extract insights from a large dataset with the help of Big Data frameworks (Spark, Hadoop) and machine learning techniques (e.g. classification, collaborative filtering, clustering, frequent pattern mining).
+## What this does
+- Loads MovieLens ratings, movies, and links tables into Spark
+- Cleans and type-casts columns needed for ALS
+- (Optional) Merges **personal IMDb ratings** into the MovieLens ratings table for a custom user profile
+- Trains an **ALS** model for implicit-style ranking + rating prediction
+- Evaluates both **rating accuracy** and **top-K ranking quality**
+  - A movie is treated as *relevant* if **rating > 3** (binarized target)
 
-### Implementation
+## Tech stack
+- Python, PySpark, Spark MLlib (ALS)
+- Koalas (Pandas-like EDA on Spark)
+- Matplotlib (charts)
 
-As our working environment, we used Google Colab to run our Apache Spark implementation:
+## Dataset
+- **MovieLens 27M** ratings dataset  
+  Expected files:
+  - `movies.csv`
+  - `ratings.csv`
+  - `links.csv`
+  - `Personal_IMBD_Ratings.csv` (optional)
 
-### Data
+## How to run
 
-I chose [University of Minnesota's MovieLens Dataset](https://grouplens.org/datasets/movielens/), widely used in the machine learning community as a benchmark for implementing and improving state-of-the-art recommender systems. I specifically chose one of the latest iterations of MovieLens which was [last updated](https://grouplens.org/datasets/movielens/latest/) in September 2018. It contains:
+### Option A: Google Colab (recommended)
+1. Open the notebook in Colab.
+2. Run the setup cells to install:
+   - Java 8
+   - Spark (2.4.x)
+   - findspark
+   - koalas
+3. Mount Google Drive and set:
+   - `DATA_PATH` -> folder containing dataset CSVs  
+   - `RESULTS_PATH` -> folder to write outputs
 
-- 27,000,000 user ratings from 280,000 users (between 1995 and 2018)
-- 58,000 rated movies
-- Table for linking MovieLens identifiers with IMDb and TMDb identifiers
+### Option B: Local Spark
+Requirements:
+- Java 8+ (Spark-compatible)
+- Apache Spark installed and `SPARK_HOME` set
+- Python packages: `pyspark`, `findspark`, `koalas` (optional)
 
-### Models
+Run the notebook normally after updating paths.
 
-- _Popularity-Based Model_ where we only recommend the highest rated movies
-- _Colaborative Filtering_ using Latent Factor Models (with Spark ML's `ALS` Model)
+## Key steps (pipeline)
+1. **Preprocessing**
+   - Cast `userId`, `movieId` to int, `rating` to double
+   - Join IMDb ids using `links.csv`
+   - Merge optional personal ratings into the main rating table
+   - Create:
+     - `ratingsScaled = rating - 2.5`
+     - `ratingsBinary = 1 if ratingsScaled > 0 else 0`
+2. **EDA**
+   - Distribution of number of ratings per user
+   - Basic stats useful for sparsity and cold-start intuition
+3. **Model training**
+   - ALS from Spark MLlib
+   - Tuned via TrainValidationSplit / ParamGrid (if enabled)
+4. **Evaluation**
+   - Rating prediction metrics (ex: RMSE)
+   - Ranking metrics on Top-K (ex: precision/recall-style metrics using relevant threshold)
 
-### Results
+## Outputs
+- Trained ALS model (and/or best model from tuning)
+- Recommendation samples (top movies per user)
+- Evaluation metrics summary
+- EDA figures (rating distribution plots)
 
-At first glance, our results with our first approach model-based collaborative filtering are mixed. The RMSE on the testing set is 0.0823 which is close to a benchmark result seen in this [arXiv research paper](https://arxiv.org/abs/1606.07659) on a different MovieLens dataset (with 20 million ratings). However, precision and NDCG (for the first 20 recommended items) for CF-ALS on the testing set are a low 0.0003\% and 0.0002\% respectively. Our popularity model outperforms CF-ALS significantly on both those metrics. Finally as shown with catalog coverage, both models struggle to recommend most of the available pool of movies to users.
+## Notes / Tips
+- For quick testing, enable the notebook `debug=True` mode to limit rows.
+- If you use personal IMDb ratings, ensure the IMDb ids match MovieLens link format.
+- Spark settings in the notebook disable auto broadcast joins for stability on large tables.
 
-One reason why our collaborative filtering model underperforms on precision and NDCG is that accuracy-based metrics are biased in favor of popular items. Our catalog coverage showed that CF-ALS produced more diverse recommendations on average then the popularity-based model. But as the vast majority of movies are almost never rated (known as the long tail of items), CF-ALS has much weaker accuracy as it generates more diverse but less relevant item recommendations (which might be more appealing than recommending the same popular movies).
-
-One reason might be that the missing entries (here unrated movies) in our ratings interaction matrix are actually Missing Not At Random (MNAR): as users can watch any movie they want, the probability of a rating being missing is not at random. Thus, the ratings distribution on the highest rated movies are different from the ratings distribution of movies on the long tail (vast majority). It might be more ideal to compute accuracy metrics separately for the most popular movies and the rest of the movie catalog.
+## License
+For academic/learning use. Dataset belongs to the MovieLens authors and follows their license terms.
